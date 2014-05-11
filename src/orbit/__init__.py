@@ -32,6 +32,11 @@ def angleBetween(vec1, vec2):
     nvec2 = normalize(vec2)
     return numpy.arccos(numpy.dot(nvec1, nvec2))
 
+def rotate(vec, angle):
+    x = vec[0] * math.cos(angle) - vec[1] * math.sin(angle)
+    y = vec[0] * math.sin(angle) + vec[1] * math.cos(angle)
+    return numpy.array([x, y], dtype=float)
+
 
 class StaticBody(object):
     """Represents a fixed position gravitational source."""
@@ -90,6 +95,9 @@ class Orbit(object):
     # http://en.wikipedia.org/wiki/Standard_gravitational_parameter
     g = 1.0;
 
+    clockwise = 1
+    counterclockwise = -1
+
     def __new__(cls, orbiter, target):
         """
         (DynamicBody) The object to be considered as the orbiting body.
@@ -116,8 +124,6 @@ class Orbit(object):
         if orbit.e > 1.0:
             orbit = HyperbolicOrbit(orbiter, target)
 
-        print orbit.apoapsis, orbit.periapsis
-            
         return orbit
 
 
@@ -128,12 +134,17 @@ class Orbit(object):
         self._target = target
 
         # Implicit orbital terms
-        self._burnoutAngle = None
-        self._e = None
-        self._ngtoorb = None
-        self._gm = None
-        self._periapsis = None
-        self._apoapsis = None
+        self._burnoutAngle = None # Angle of the initial point of orbit
+        self._a = None # Semi-major axis
+        self._b = None # Semi-minor axis
+        self._e = None # Eccentricity
+        self._f = None # Distance from center to focci.
+        self._ngtoorb = None # Normalized gravitiational source to orbitiing start position
+        self._gm = None # Standard gravatational parameter (constant times mass)
+        self._periapsis = None # Closest distance in orbit
+        self._apoapsis = None # Furthest distance in orbit
+        self._launchAngle = None # Angle between initial point and periapsis around orbit
+        self._direction = None # Direction of orbit
 
     def _computeApsi(self):
         r = self.r
@@ -142,9 +153,8 @@ class Orbit(object):
         nvel = normalize(self.orbiter.velocity)
 
         angle = self.burnoutAngle
-        GM = self.gm
 
-        C = 2.0 * GM / (r*(v**2))
+        C = 2.0 * self.gm / (r*(v**2))
         negC = C*-1.0
         omC = 1.0-C
         C2 = C**2
@@ -173,26 +183,51 @@ class Orbit(object):
             self._periapsis = Rp1*r
 
 
+    @property
+    def a(self):
+        """Semi-major axis"""
+        if self._a is None:
+            self._a = 1.0 / (2.0 / self.r - (numpy.linalg.norm(self.orbiter.velocity)**2) / self.gm)
+        return self._a
 
     @property
     def apoapsis(self):
         if self._apoapsis is None:
+            # Apoapsis and Periapsis are computed together,
+            # the first one called will cache both.
             self._computeApsi()
         return self._apoapsis
 
+    @property
+    def b(self):
+        """Semi-minor axis"""
+        if self._b is None:
+            self._b = self._a * math.sqrt(1.0-self.e)
+        return self._b
 
     @property
     def burnoutAngle(self):
         """The angle between the gravitational source and where the orbit began."""
         if self._burnoutAngle is None:
             nvel = normalize(self.orbiter.velocity)
-            angle = (angleBetween(self.ngtoorb, nvel)/180.0)*math.pi
+            angle = angleBetween(self.ngtoorb, nvel)
             cross = numpy.cross(self.ngtoorb, nvel)
 
             if (numpy.dot(numpy.array([0.0, -1.0], dtype=float), cross)[0] < 0.0):
                 angle *= -1.0;
 
         return angle
+
+    @property
+    def direction(self):
+        if self._direction is None:
+            rightanglevec = rotate(self.ngtoorb, math.pi/2.0)
+            if (numpy.dot(rightanglevec, normalize(self.orbiter.velocity))>0.0):
+                self._direction = self.counterclockwise
+            else:
+                self._direction = self.clockwise
+        return self._direction
+        
 
     @property
     def e(self):
@@ -209,10 +244,37 @@ class Orbit(object):
         return self._e
 
     @property
+    def f(self):
+        """The distance from the center to either focci."""
+        if self._f is None:
+            self._f = self.e*self.a
+
+        return sel._f
+
+    @property
     def gm(self):
         if self._gm is None:
             self._gm = self.g*self.target.mass
+
         return self._gm
+
+    @property
+    def launchAngle(self):
+        if self._launchAngle is None:
+            rvmagsqr = (self.r * (numpy.linalg.norm(self.orbiter.velocity)**2) / self.gm)
+            sincos = math.sin(self.burnoutAngle) * math.cos(self.burnoutAngle)
+            denom =  (rvmagsqr * (math.sin(self.burnoutAngle)**2)-1)
+            ltp = (rvmagsqr * sincos) / denom
+            launchToPeri = math.atan(ltp)
+
+            if ( denom < 0.0 ):
+                launchToPeri += math.pi
+
+
+
+            self._launchAngle = launchToPeri
+
+        return self._launchAngle
 
     @property
     def ngtoorb(self):
@@ -242,14 +304,85 @@ class Orbit(object):
         """The object considered to be the gravity source."""
         return self._target
 
+    def displayPoints(points=0):
+        raise NotImplementedError("displayPoints() must not be run from a generic orbit.")
+
 
 class EllipticalOrbit(Orbit):
     def __new__(cls, orbiter, target):
         instance = object.__new__(cls, orbiter, target)
         return instance
 
+    def displayPoints(self, points=30, close=True):
+        """Generator to create points to display the orbit.
+
+        points (int) Number of points to be used to represent the orbit.
+
+        """
+
+        # The angle per point to sweep based on points
+        radPerPoint = (math.pi*2.0) / float(points)
+
+        firstPoint = None
+        for i in xrange(0, points):
+            theta = i*radPerPoint
+            r = self.a*((1 - (self.e**2)) / (1+self.e*math.cos(theta)))
+            point = rotate(self.ngtoorb, self.direction*(theta+self.launchAngle+math.pi))*r
+
+
+            if firstPoint is None:
+                firstPoint = point
+
+            yield point
+
+        if close is True:
+            yield firstPoint
+        
+
 class HyperbolicOrbit(Orbit):
     def __new__(cls, orbiter, target):
         instance = object.__new__(cls, orbiter, target)
         return instance
+
+    def __init__(self, orbiter, target):
+        super(HyperbolicOrbit, self).__init__(orbiter, target)
+        self._asymptote = None
+        self._semilatusRectum = None
+
+    def displayPoints(self, points=30):
+        """Generator to create points to display the orbit.
+
+        points (int) Number of points to be used to represent the orbit.
+
+        """
+
+        start = -(self.asymptote-.1)
+        end = self.asymptote-.1
+        radPerPoint = (end-start)/points
+
+        for i in xrange(0, points):
+            theta = (i*radPerPoint)+start
+            r = self.a*((1 - (self.e**2)) / (1+self.e*math.cos(theta)))
+            point = rotate(self.ngtoorb, self.direction*(theta+self.launchAngle+math.pi))*r
+
+            yield point
+
+    @property
+    def asymptote(self):
+        """The angle at which the hyperbolic asymptote relative to the semi-latus rectum."""
+        if self._asymptote is None:
+            self._asymptote = math.acos(-(1.0/self.e))
+        return self._asymptote
+
+    @property
+    def semilatusRectum(self):
+        """The hyperbolic term from which the asymptotes cross.
+        Described as a distance from the focus source through the periapsis.
+
+        """
+
+        if self._semilatusRectum is None:
+            self._semilatusRectum = self.a*(1.0-(e**2))
+
+        return self._semilatusRectum
 
