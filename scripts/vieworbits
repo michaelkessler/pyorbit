@@ -1,0 +1,178 @@
+#!/usr/bin/python
+
+import sys
+import os
+import orbit
+import numpy
+
+try:
+    from PySide import QtGui, QtCore
+except ImportError:
+    from PyQt4 import QtGui, QtCore
+    QtCore.Signal = QtCore.pyqtSignal
+    QtCore.QString = str
+
+class OrbitWidget(QtGui.QWidget):
+
+    def __init__(self, parent=None):
+        super(OrbitWidget, self).__init__(parent)
+        self._planet = orbit.StaticBody(numpy.array([0.0, 0.0]), 80)
+        self._ship = orbit.DynamicBody(numpy.array([-8.0, 0.0]), numpy.array([2.0, 0.0]))
+        self._orbit = orbit.Orbit(self._ship, self._planet)
+
+    def paintEvent(self, event):
+
+        xzero = self.size().width()/2.0
+        yzero = self.size().height()/2.0
+        scale = 20
+
+        painter = QtGui.QPainter()
+        painter.begin(self)
+        painter.setRenderHint(painter.Antialiasing)
+        painter.setRenderHint(painter.HighQualityAntialiasing)
+
+
+        # Draw the ship
+        shipSize = 10
+        spx = xzero+(self._ship.position[0]*scale)
+        spy = yzero+(self._ship.position[1]*scale)
+        painter.setPen(QtCore.Qt.black)
+        painter.drawEllipse(spx-(shipSize/2), spy-(shipSize/2), shipSize, shipSize)
+
+        # Draw the ship's velocity
+        svx = self._ship.velocity[0]*scale
+        svy = self._ship.velocity[1]*scale
+        painter.setPen(QtCore.Qt.green)
+        painter.drawLine(spx, spy, spx+svx, spy+svy)
+
+        # Draw the planet
+        planetSize = self._planet.mass/4
+        ppx = xzero-(planetSize/2)
+        ppy = yzero-(planetSize/2)
+
+        painter.setPen(QtCore.Qt.NoPen)
+
+        planetGradient = QtGui.QRadialGradient(ppx, ppy, planetSize)
+        planetGradient.setColorAt(0, QtGui.QColor.fromRgbF(1, 1, 1, 1))
+        planetGradient.setColorAt(1, QtGui.QColor.fromRgbF(0, 0, .3, 1))
+        painter.setBrush(planetGradient)  
+        painter.drawEllipse( ppx, ppy, planetSize, planetSize)
+
+        brush = painter.brush()
+        brush.setStyle(QtCore.Qt.SolidPattern)
+        painter.setBrush(brush)
+
+        try:
+            if type(self._orbit) is orbit.EllipticalOrbit:
+                # Draw the apoapsis (furthest point)
+                apoPos = self._orbit.ngtoorb * self._orbit.apoapsis
+                apoPos = orbit.rotate(apoPos, self._orbit.launchAngle)
+                painter.setPen(QtCore.Qt.darkCyan)
+                painter.drawLine(xzero, yzero, int(xzero+(apoPos[0]*scale)), yzero+(apoPos[1]*scale))
+
+            # Draw the periapsis (closest point)
+            periPos = self._orbit.ngtoorb * self._orbit.periapsis
+            periPos = orbit.rotate(periPos, self._orbit.launchAngle)
+            painter.setPen(QtCore.Qt.darkRed)
+            painter.drawLine(xzero, yzero, int(xzero-(periPos[0]*scale)), yzero-(periPos[1]*scale))
+        except ValueError:
+            pass
+
+
+        # Draw the orbit
+        painter.setBrush(QtCore.Qt.NoBrush)
+        painter.setPen(QtCore.Qt.blue)
+        path = QtGui.QPainterPath()
+        firstPoint = None
+        for point in self._orbit.displayPoints(points=50):
+            if firstPoint is None:
+                path.moveTo(xzero+(point[0]*scale), yzero+(point[1]*scale))
+                firstPoint = point
+            else:
+                path.lineTo(xzero+(point[0]*scale), yzero+(point[1]*scale))
+
+
+
+        painter.drawPath(path)
+
+        painter.end()
+
+    def replaceShip(self, px, py, vx, vy):
+        self._ship = orbit.DynamicBody(numpy.array([px, py]), numpy.array([vx, vy]))
+        self._orbit = orbit.Orbit(self._ship, self._planet)
+
+        self.update()
+
+    def sizeHint(self):
+        return QtCore.QSize(500,500)
+
+
+
+class ControlWidget(QtGui.QWidget):
+
+    updateShip = QtCore.Signal(float, float, float, float)
+
+    def __init__(self, parent=None):
+        super(ControlWidget, self).__init__(parent)
+
+        self._posx = QtGui.QDoubleSpinBox()
+        self._posy = QtGui.QDoubleSpinBox()
+        self._velx = QtGui.QDoubleSpinBox()
+        self._vely = QtGui.QDoubleSpinBox()
+
+        self._posx.setValue(3.0)
+        self._vely.setValue(6.0)
+
+        layout = QtGui.QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        for sb in [self._posx, self._posy, self._velx, self._vely]:
+            sb.valueChanged.connect(self.updateValue)
+            sb.setRange(-20, 20)
+            sb.setSingleStep(.05)
+            layout.addWidget(sb)
+
+        self.setLayout(layout)
+
+    def updateValue(self, value):
+        self.updateShip.emit(self._posx.value(), self._posy.value(), self._velx.value(), self._vely.value())
+
+
+class MainWidget(QtGui.QWidget):
+    def __init__(self, parent=None):
+        super(MainWidget, self).__init__(parent)
+
+        layout = QtGui.QVBoxLayout()
+
+        self._orbitView = OrbitWidget(self)
+        layout.addWidget(self._orbitView)
+
+        self._controlView = ControlWidget(self)
+        layout.addWidget(self._controlView)
+
+        self._controlView.updateShip.connect(self._orbitView.replaceShip)
+
+        # Force an update to syncronize the controller with the view.
+        # In reality, a proper client will implement a qt model from which
+        # the view would receive all its updates.
+        self._controlView.updateValue(1)
+
+        layout.setStretchFactor(self._orbitView, 100)
+        layout.setStretchFactor(self._controlView, 1)
+        self.setLayout(layout)
+    
+
+
+def main():
+    app = QtGui.QApplication(sys.argv)
+
+    mainWidget = MainWidget()
+    mainWidget.show()
+
+    sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
+
