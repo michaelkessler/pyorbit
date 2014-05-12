@@ -1,15 +1,15 @@
 # Copyright (c) 2014 Michael Kessler
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -17,6 +17,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+
+"""An orbit computation library for 2-body keplerian orbits."""
 
 import numpy
 import math
@@ -60,7 +62,7 @@ def rotate(vector, angle):
         numpy.array: A 2d array representing the rotated input.
 
     """
-    
+
     x = vector[0] * math.cos(angle) - vector[1] * math.sin(angle)
     y = vector[0] * math.sin(angle) + vector[1] * math.cos(angle)
     return numpy.array([x, y], dtype=float)
@@ -128,7 +130,7 @@ class Orbit(object):
 
     # Standard gravitational constant.
     # http://en.wikipedia.org/wiki/Standard_gravitational_parameter
-    g = 1.0;
+    g = 1.0
     # For real scaling set g to 6.67*10^-11, but for the purposes
     # of floating point accuracy and game scales, we use 1.0
 
@@ -266,12 +268,11 @@ class Orbit(object):
         """The direction of orbit from the 'top' vantage point."""
         if self._direction is None:
             rightanglevec = rotate(self.ngtoorb, math.pi/2.0)
-            if (numpy.dot(rightanglevec, normalize(self.orbiter.velocity))>0.0):
+            if (numpy.dot(rightanglevec, normalize(self.orbiter.velocity)) > 0.0):
                 self._direction = self.counterclockwise
             else:
                 self._direction = self.clockwise
         return self._direction
-        
 
     @property
     def e(self):
@@ -309,7 +310,7 @@ class Orbit(object):
         if self._launchAngle is None:
             rvmagsqr = (self.r * (numpy.linalg.norm(self.orbiter.velocity)**2) / self.gm)
             sincos = math.sin(self.burnoutAngle) * math.cos(self.burnoutAngle)
-            denom =  (rvmagsqr * (math.sin(self.burnoutAngle)**2)-1)
+            denom = (rvmagsqr * (math.sin(self.burnoutAngle)**2)-1)
             ltp = (rvmagsqr * sincos) / denom
             launchToPeri = math.atan(ltp)
 
@@ -395,7 +396,6 @@ class EllipticalOrbit(Orbit):
 
         if close is True:
             yield firstPoint
-        
 
 class HyperbolicOrbit(Orbit):
     """A HyperbolicOrbit is the representation of the orbital path of an orbit which
@@ -430,7 +430,7 @@ class HyperbolicOrbit(Orbit):
             points (int): Number of points to be used to represent the orbit.
 
         Returns:
-            generator: Returns a generator returning elements as [x,y] in a numpy.array 
+            generator: Returns a generator returning elements as [x,y] in a numpy.array
 
         """
 
