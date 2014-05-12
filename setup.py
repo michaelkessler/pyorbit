@@ -8,5 +8,6 @@ setup(name='orbit',
       author='Michael Kessler',
       author_email='mikepkes@gmail.com',
       packages=['orbit'],
-      package_dir={'orbit':'src'}
+      package_dir={'orbit':'src/orbit'},
+      scripts=['scripts/vieworbits'],
      )
