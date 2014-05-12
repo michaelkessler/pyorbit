@@ -198,6 +198,8 @@ class MainWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(MainWidget, self).__init__(parent)
 
+        self.setWindowTitle('Orbit Viewer')
+
         layout = QtGui.QVBoxLayout()
 
         self._orbitView = OrbitWidget(self)
