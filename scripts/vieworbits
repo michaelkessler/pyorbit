@@ -5,14 +5,16 @@ import os
 import orbit
 import numpy
 
+# We don't know what Qt library the target system uses.
+# Therefore, be nice and allow for either but prefer PySide.
 try:
     from PySide import QtGui, QtCore
 except ImportError:
     from PyQt4 import QtGui, QtCore
     QtCore.Signal = QtCore.pyqtSignal
-    QtCore.QString = str
 
 class OrbitWidget(QtGui.QWidget):
+    """A view of the orbit path, planet, and ship on a black background."""
 
     def __init__(self, parent=None):
         super(OrbitWidget, self).__init__(parent)
@@ -26,6 +28,8 @@ class OrbitWidget(QtGui.QWidget):
 
     def paintEvent(self, event):
 
+        # Without a more complicated drawing system, we will
+        # act as if our originin the center of the widget.
         xzero = self.size().width()/2.0
         yzero = self.size().height()/2.0
         scale = 20
@@ -37,7 +41,6 @@ class OrbitWidget(QtGui.QWidget):
         painter.setRenderHint(painter.Antialiasing)
         painter.setRenderHint(painter.HighQualityAntialiasing)
 
-
         # Draw the planet
         planetSize = self._planet.mass/4
         ppx = xzero-(planetSize/2)
@@ -45,6 +48,8 @@ class OrbitWidget(QtGui.QWidget):
 
         painter.setPen(QtCore.Qt.NoPen)
 
+        # Add a little bit of visual interest to the planet
+        # by adding a small radial gradient.
         planetGradient = QtGui.QRadialGradient(ppx, ppy, planetSize)
         planetGradient.setColorAt(0, QtGui.QColor.fromRgbF(1, 1, 1, 1))
         planetGradient.setColorAt(1, QtGui.QColor.fromRgbF(0, 0, .3, 1))
@@ -69,8 +74,10 @@ class OrbitWidget(QtGui.QWidget):
             painter.setPen(QtCore.Qt.darkRed)
             painter.drawLine(xzero, yzero, int(xzero-(periPos[0]*scale)), yzero-(periPos[1]*scale))
         except ValueError:
+            # There are some cases where values zero out and create cases where things won't draw.
+            # It is dangerous to fail on something so trivial inside the paintEvent so we catch
+            # the error and go about our merry way.
             pass
-
 
         # Draw the orbit
         painter.setBrush(QtCore.Qt.NoBrush)
@@ -84,11 +91,7 @@ class OrbitWidget(QtGui.QWidget):
             else:
                 path.lineTo(xzero+(point[0]*scale), yzero+(point[1]*scale))
 
-
-
         painter.drawPath(path)
-
-
 
         # Draw the ship
         shipSize = 10
@@ -103,21 +106,23 @@ class OrbitWidget(QtGui.QWidget):
         painter.setPen(QtCore.Qt.darkCyan)
         painter.drawLine(spx, spy, spx+svx, spy+svy)
 
-
         painter.end()
 
     def replaceShip(self, px, py, vx, vy):
         self._ship = orbit.DynamicBody(numpy.array([px, py]), numpy.array([vx, vy]))
         self._orbit = orbit.Orbit(self._ship, self._planet)
 
+        # We need a redraw, but update will allow it to happen later in the normal event loop.
         self.update()
 
     def sizeHint(self):
+        """Reimplemented from Qt baseclass to loosely suggest a good display size."""
+
+        # Better than forcing a size, just a good arbitrary starting value.
         return QtCore.QSize(500,500)
 
-
-
 class ControlWidget(QtGui.QWidget):
+    """The bottom set of controls for modifying position and velocity."""
 
     updateShip = QtCore.Signal(float, float, float, float)
 
@@ -145,10 +150,13 @@ class ControlWidget(QtGui.QWidget):
         self.setLayout(layout)
 
     def updateValue(self, value):
+        """Used as a slot to retrieve an update from a spinbox and notify the orbit view."""
         self.updateShip.emit(self._posx.value(), self._posy.value(), self._velx.value(), self._vely.value())
 
 
 class MainWidget(QtGui.QWidget):
+    """A simple widget forming the main window/widget of the vieworbits example."""
+
     def __init__(self, parent=None):
         super(MainWidget, self).__init__(parent)
 
@@ -167,10 +175,11 @@ class MainWidget(QtGui.QWidget):
         # the view would receive all its updates.
         self._controlView.updateValue(1)
 
+
+        # We really want the orbit view to be dominant, give it preference.
         layout.setStretchFactor(self._orbitView, 100)
         layout.setStretchFactor(self._controlView, 1)
         self.setLayout(layout)
-    
 
 
 def main():
