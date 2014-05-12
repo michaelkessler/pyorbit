@@ -112,7 +112,10 @@ class DynamicBody(object):
         self._velocity = velocity
 
     def __repr__(self):
-        return 'StaticBody([{p[0]},{p[1]}], [{v[0]},{v[1]}])'.format(p=self.position, m=self.velocity)
+        return 'StaticBody([{p[0]},{p[1]}], [{v[0]},{v[1]}])'.format(
+            p=self.position,
+            m=self.velocity
+        )
 
     @property
     def position(self):
@@ -190,8 +193,6 @@ class Orbit(object):
         """Compute the periapsis and apoapsis and store the results."""
         r = self.r
         v = numpy.linalg.norm(self.orbiter.velocity)
-        M = self.target.mass
-        nvel = normalize(self.orbiter.velocity)
 
         angle = self.burnoutAngle
 
@@ -294,7 +295,7 @@ class Orbit(object):
         if self._f is None:
             self._f = self.e*self.a
 
-        return sel._f
+        return self._f
 
     @property
     def gm(self):
@@ -351,7 +352,7 @@ class Orbit(object):
         """The object considered to be the gravity source."""
         return self._target
 
-    def displayPoints(points=0):
+    def displayPoints(self, points=0):
         """Unimplemented method to be implemented by subclasses.
 
         Raises:
@@ -373,7 +374,7 @@ class EllipticalOrbit(Orbit):
         instance = object.__new__(cls, orbiter, target)
         return instance
 
-    def displayPoints(self, points=30, close=True):
+    def displayPoints(self, points=30):
         """Generator to create points to display the orbit.
 
         points (int) Number of points to be used to represent the orbit.
@@ -394,8 +395,7 @@ class EllipticalOrbit(Orbit):
 
             yield point
 
-        if close is True:
-            yield firstPoint
+        yield firstPoint
 
 class HyperbolicOrbit(Orbit):
     """A HyperbolicOrbit is the representation of the orbital path of an orbit which
