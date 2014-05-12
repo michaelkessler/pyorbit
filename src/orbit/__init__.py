@@ -367,7 +367,7 @@ class Orbit(object):
         raise NotImplementedError("displayPoints() must not be run from a generic orbit.")
 
     def positionAtTime(self, time):
-        """Given a time, geenrate a position where the ship will/has been."""
+        """Given a time, generate a position where the ship will/has been."""
 
         ta = self.trueAnomaly(time)
         r = self.a*(1-(self.e**2))/(1+self.e*math.cos(ta))
