@@ -171,7 +171,6 @@ class Orbit(object):
 
         """
 
-
         # Direct assignments
         self._orbiter = orbiter
         self._target = target
@@ -198,9 +197,9 @@ class Orbit(object):
 
         # A few simplifications to reduce complexity in the full equation.
         C = 2.0 * self.gm / (r*(v**2))
-        negC = C*-1.0
-        omC = 1.0-C
-        C2 = C**2
+        negC = C*-1.0 # Negative C
+        omC = 1.0-C # One Minus C
+        C2 = C**2 # C Squared
 
         # Perform the quadratic equation to determine our apsi
         quadSecond = math.sqrt(
@@ -260,7 +259,7 @@ class Orbit(object):
             cross = numpy.cross(self.ngtoorb, nvel)
 
             if (numpy.dot(numpy.array([0.0, -1.0], dtype=float), cross)[0] < 0.0):
-                angle *= -1.0;
+                angle *= -1.0
 
         return angle
 
@@ -455,7 +454,7 @@ class HyperbolicOrbit(Orbit):
         """
 
         if self._semilatusRectum is None:
-            self._semilatusRectum = self.a*(1.0-(e**2))
+            self._semilatusRectum = self.a*(1.0-(self.e**2))
 
         return self._semilatusRectum
 
