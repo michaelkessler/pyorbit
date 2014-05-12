@@ -378,6 +378,11 @@ class EllipticalOrbit(Orbit):
         instance = object.__new__(cls, orbiter, target)
         return instance
 
+    def __init__(self, orbiter, target):
+        """An elliptical tragectory orbit."""
+        super(EllipticalOrbit, self).__init__(orbiter, target)
+        self._period = None # The time it takes to complete one orbit.
+
     def displayPoints(self, points=30, close=True):
         """Generator to create points to display the orbit.
 
@@ -404,6 +409,71 @@ class EllipticalOrbit(Orbit):
         # Finally end with the starting point to close the loop.
         if close:
             yield firstPoint
+
+    def meanAnomaly(self, time):
+        """The angular parmater based on sweeping angles."""
+        p = self.period
+        return ((time%p)/p)*2*math.pi
+
+    @property
+    def period(self):
+        """The orbital period, or length of time for complete orbit."""
+        if self._period is None:
+            self._period = math.sqrt((4*(math.pi**2)*(self.a**3))/self.gm)
+        return self._period
+        
+    @property
+    def semilatusRectum(self):
+        """The hyperbolic term from which the asymptotes cross.
+        Described as a distance from the focus source through the periapsis.
+        See: http://mathworld.wolfram.com/SemilatusRectum.html
+
+        """
+
+        if self._semilatusRectum is None:
+            self._semilatusRectum = self.a*(1.0-(self.e**2))
+
+        return self._semilatusRectum
+
+    def trueAnomaly(self, time, maxIterations=20):
+        """The angular parameter given a time from initial position."""
+
+        correctedTime = time % self.period
+
+        epsilon = .0001
+
+        M = self.meanAnomaly(correctedTime)
+
+        # Set all our eccentricitiy working variables to the best guess.
+        E = E_new = E_old = E_oldold = M + (self.e/2.0)
+        iterations = 0
+
+        # Use series expansion to solve.
+        while iterations < maxIterations:
+            E_new = E_old - ((E_old - self.e * math.sin(E_old) - M) /
+                    (1.0 - self.e * math.cos(E_old)))
+
+            E_oldold = E_old
+            E_old = E_new
+            iterations += 1
+
+            if abs(E_old - E_oldold) < epsilon:
+                # No need to iterate more, we have our solution.
+                break
+
+        E = E_new
+
+        bodyAngle = math.acos((math.cos(E) - self.e)/(1.0-self.e*math.cos(E)))
+
+        # If we are in the second half of the orbit, mirror our position to
+        # get our angle past the apoapsis
+        if correctedTime > self.period/2:
+            bodyAngle = 2.0*math.pi-bodyAngle
+
+        # Reverse the angle if we are going counterclockwise
+        return bodyAngle*self.direction
+            
+
 
 class HyperbolicOrbit(Orbit):
     """A HyperbolicOrbit is the representation of the orbital path of an orbit which
@@ -455,6 +525,11 @@ class HyperbolicOrbit(Orbit):
             # Generate one point at at time so drawing routines can iterate.
             yield point
 
+
+    def eccentricAnomaly(self, time):
+        """The angular parameter from focus given a time from initial position."""
+        pass
+
     @property
     def semilatusRectum(self):
         """The hyperbolic term from which the asymptotes cross.
@@ -467,4 +542,8 @@ class HyperbolicOrbit(Orbit):
             self._semilatusRectum = self.a*(1.0-(self.e**2))
 
         return self._semilatusRectum
+
+    def trueAnomaly(self, time):
+        """The angular parameter given a time from initial position."""
+        pass
 

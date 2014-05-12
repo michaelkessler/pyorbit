@@ -1,6 +1,7 @@
 import orbit
 import unittest
 import numpy
+import math
 
 class TestEllipticalOrbit(unittest.TestCase):
 
@@ -24,6 +25,21 @@ class TestEllipticalOrbit(unittest.TestCase):
             radius = numpy.linalg.norm(point)
             self.assertTrue(radius > 7.85)
             self.assertTrue(radius < 7.95)
+
+    def test_circular_orbit_true_anomaly(self):
+        """Tests the angular parameters of the orbit."""
+
+        divisions = 10
+        timePerDivision = self.circularOrbit.period/divisions
+        anglePerDivision = math.pi*2/divisions
+
+        # Loop through angles in the near-circular orbit and ensure they are close to regular intervals.
+        for division in xrange(divisions):
+            time = timePerDivision*division
+            angle = self.circularOrbit.trueAnomaly(time)
+            error = angle - (anglePerDivision*division)
+
+            self.assertTrue(error < .01)
 
     def test_orbit_types(self):
         """Tests to see if the correct subclass is instantiated by the Orbit factory."""
