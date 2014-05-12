@@ -4,6 +4,7 @@ import sys
 import os
 import orbit
 import numpy
+import math
 
 # We don't know what Qt library the target system uses.
 # Therefore, be nice and allow for either but prefer PySide.
@@ -21,6 +22,7 @@ class OrbitWidget(QtGui.QWidget):
         self._planet = orbit.StaticBody(numpy.array([0.0, 0.0]), 80)
         self._ship = orbit.DynamicBody(numpy.array([-8.0, 0.0]), numpy.array([2.0, 0.0]))
         self._orbit = orbit.Orbit(self._ship, self._planet)
+        self._time = 0.0
         self.setAutoFillBackground(True)
         palette = self.palette()
         palette.setColor(palette.Background, QtCore.Qt.black)
@@ -93,7 +95,21 @@ class OrbitWidget(QtGui.QWidget):
 
         painter.drawPath(path)
 
-        # Draw the ship
+        # Draw the moved ship
+        shipSize = 10
+        #angle = self._orbit.trueAnomaly(self._time)
+        #movedPosition = orbit.rotate(self._orbit.ngtoorb, angle+math.pi)*self._orbit.r
+        try:
+            fspx = xzero+(self._orbit.positionAtTime(self._time)[0]*scale)
+            fspy = yzero+(self._orbit.positionAtTime(self._time)[1]*scale)
+        except NotImplementedError:
+            # Currently hyperbolic orbits are not ported over, fail gracefully.
+            pass
+        else:
+            painter.setPen(QtCore.Qt.gray)
+            painter.drawEllipse(fspx-(shipSize/2), fspy-(shipSize/2), shipSize, shipSize)
+
+        # Draw the starting ship
         shipSize = 10
         spx = xzero+(self._ship.position[0]*scale)
         spy = yzero+(self._ship.position[1]*scale)
@@ -115,6 +131,10 @@ class OrbitWidget(QtGui.QWidget):
         # We need a redraw, but update will allow it to happen later in the normal event loop.
         self.update()
 
+    def moveShip(self, time):
+        self._time = time
+        self.update()
+
     def sizeHint(self):
         """Reimplemented from Qt baseclass to loosely suggest a good display size."""
 
@@ -125,14 +145,19 @@ class ControlWidget(QtGui.QWidget):
     """The bottom set of controls for modifying position and velocity."""
 
     updateShip = QtCore.Signal(float, float, float, float)
+    updateTime = QtCore.Signal(float)
 
     def __init__(self, parent=None):
         super(ControlWidget, self).__init__(parent)
 
         self._posx = QtGui.QDoubleSpinBox()
+        self._posx.setPrefix('px:  ')
         self._posy = QtGui.QDoubleSpinBox()
+        self._posy.setPrefix('py:  ')
         self._velx = QtGui.QDoubleSpinBox()
+        self._velx.setPrefix('vx:  ')
         self._vely = QtGui.QDoubleSpinBox()
+        self._vely.setPrefix('vy:  ')
 
         self._posx.setValue(3.0)
         self._vely.setValue(6.0)
@@ -147,11 +172,24 @@ class ControlWidget(QtGui.QWidget):
             sb.setSingleStep(.05)
             layout.addWidget(sb)
 
+
+        self._time = QtGui.QDoubleSpinBox()
+        self._time.setPrefix('seconds:  ')
+        self._time.setRange(-50,50)
+        self._time.setSingleStep(.05)
+        self._time.valueChanged.connect(self.forwardTime)
+        layout.addWidget(self._time)
+
         self.setLayout(layout)
+
+    def forwardTime(self, value):
+        """Used as an internal forwarding to the updateTime slot for encapsulation."""
+        self.updateTime.emit(value)
 
     def updateValue(self, value):
         """Used as a slot to retrieve an update from a spinbox and notify the orbit view."""
         self.updateShip.emit(self._posx.value(), self._posy.value(), self._velx.value(), self._vely.value())
+        self.updateTime.emit(self._time.value())
 
 
 class MainWidget(QtGui.QWidget):
@@ -169,6 +207,7 @@ class MainWidget(QtGui.QWidget):
         layout.addWidget(self._controlView)
 
         self._controlView.updateShip.connect(self._orbitView.replaceShip)
+        self._controlView.updateTime.connect(self._orbitView.moveShip)
 
         # Force an update to syncronize the controller with the view.
         # In reality, a proper client will implement a qt model from which
