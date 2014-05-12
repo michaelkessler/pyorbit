@@ -19,6 +19,10 @@ class OrbitWidget(QtGui.QWidget):
         self._planet = orbit.StaticBody(numpy.array([0.0, 0.0]), 80)
         self._ship = orbit.DynamicBody(numpy.array([-8.0, 0.0]), numpy.array([2.0, 0.0]))
         self._orbit = orbit.Orbit(self._ship, self._planet)
+        self.setAutoFillBackground(True)
+        palette = self.palette()
+        palette.setColor(palette.Background, QtCore.Qt.black)
+        self.setPalette(palette)
 
     def paintEvent(self, event):
 
@@ -28,22 +32,11 @@ class OrbitWidget(QtGui.QWidget):
 
         painter = QtGui.QPainter()
         painter.begin(self)
+
+        # Make our lines nice and smooth.
         painter.setRenderHint(painter.Antialiasing)
         painter.setRenderHint(painter.HighQualityAntialiasing)
 
-
-        # Draw the ship
-        shipSize = 10
-        spx = xzero+(self._ship.position[0]*scale)
-        spy = yzero+(self._ship.position[1]*scale)
-        painter.setPen(QtCore.Qt.black)
-        painter.drawEllipse(spx-(shipSize/2), spy-(shipSize/2), shipSize, shipSize)
-
-        # Draw the ship's velocity
-        svx = self._ship.velocity[0]*scale
-        svy = self._ship.velocity[1]*scale
-        painter.setPen(QtCore.Qt.green)
-        painter.drawLine(spx, spy, spx+svx, spy+svy)
 
         # Draw the planet
         planetSize = self._planet.mass/4
@@ -66,13 +59,13 @@ class OrbitWidget(QtGui.QWidget):
             if type(self._orbit) is orbit.EllipticalOrbit:
                 # Draw the apoapsis (furthest point)
                 apoPos = self._orbit.ngtoorb * self._orbit.apoapsis
-                apoPos = orbit.rotate(apoPos, self._orbit.launchAngle)
-                painter.setPen(QtCore.Qt.darkCyan)
+                apoPos = orbit.rotate(apoPos, self._orbit.launchAngle*self._orbit.direction)
+                painter.setPen(QtCore.Qt.darkGreen)
                 painter.drawLine(xzero, yzero, int(xzero+(apoPos[0]*scale)), yzero+(apoPos[1]*scale))
 
             # Draw the periapsis (closest point)
             periPos = self._orbit.ngtoorb * self._orbit.periapsis
-            periPos = orbit.rotate(periPos, self._orbit.launchAngle)
+            periPos = orbit.rotate(periPos, self._orbit.launchAngle*self._orbit.direction)
             painter.setPen(QtCore.Qt.darkRed)
             painter.drawLine(xzero, yzero, int(xzero-(periPos[0]*scale)), yzero-(periPos[1]*scale))
         except ValueError:
@@ -94,6 +87,22 @@ class OrbitWidget(QtGui.QWidget):
 
 
         painter.drawPath(path)
+
+
+
+        # Draw the ship
+        shipSize = 10
+        spx = xzero+(self._ship.position[0]*scale)
+        spy = yzero+(self._ship.position[1]*scale)
+        painter.setPen(QtCore.Qt.white)
+        painter.drawEllipse(spx-(shipSize/2), spy-(shipSize/2), shipSize, shipSize)
+
+        # Draw the ship's velocity
+        svx = self._ship.velocity[0]*scale
+        svy = self._ship.velocity[1]*scale
+        painter.setPen(QtCore.Qt.darkCyan)
+        painter.drawLine(spx, spy, spx+svx, spy+svy)
+
 
         painter.end()
 
