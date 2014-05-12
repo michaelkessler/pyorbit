@@ -5,23 +5,41 @@ import numpy
 class TestEllipticalOrbit(unittest.TestCase):
 
     def setUp(self):
-        self._slowShip = orbit.DynamicBody(numpy.array([-10.5, 0.0], dtype=float) ,numpy.array([0.0, 1.10], dtype=float))
-        self._standardShip = orbit.DynamicBody(numpy.array([-16.64, 2.2219], dtype=float) ,numpy.array([0.4240792, 2.147133], dtype=float))
-        self._fastShip = orbit.DynamicBody(numpy.array([-16.64, 2.2219], dtype=float) ,numpy.array([0.0, 15], dtype=float))
-        self._planet = orbit.StaticBody(numpy.array([0, 0], dtype=float), 80.0)
+        self.circularShip = orbit.DynamicBody(numpy.array([7.85,0.0], dtype=float), numpy.array([0.0, 3.2]))
+        self.planet = orbit.StaticBody(numpy.array([0.0, 0.0], dtype=float), 80)
+        self.circularOrbit = orbit.Orbit(self.circularShip, self.planet)
 
-        self._shallowOrbit = orbit.Orbit(self._slowShip, self._planet)
-        self._ellipticalOrbit = orbit.Orbit(self._standardShip, self._planet)
-        self._hyperbolicOrbit = orbit.Orbit(self._fastShip, self._planet)
+    def test_circular_orbit_eccentricity(self):
+        """Tests a *nearly* circular orbit."""
 
-    def test_body_types(self):
-        self.assertTrue(type(self._planet) is orbit.StaticBody)
-        self.assertTrue(type(self._standardShip) is orbit.DynamicBody)
+        # True circular orbits have a 0 eccentricity; this orbit is near circular so we build in a tolerence.
+        self.assertTrue(self.circularOrbit.e < .01)
+
+        # Test various options on displayPoints()
+        self.assertTrue(len([i for i in self.circularOrbit.displayPoints()]) == 31)
+        self.assertTrue(len([i for i in self.circularOrbit.displayPoints(close=False)]) == 30)
+        self.assertTrue(len([i for i in self.circularOrbit.displayPoints(points=100, close=False)]) == 100)
+
+        for point in self.circularOrbit.displayPoints():
+            radius = numpy.linalg.norm(point)
+            self.assertTrue(radius > 7.85)
+            self.assertTrue(radius < 7.95)
 
     def test_orbit_types(self):
-        self.assertTrue(type(self._shallowOrbit) is orbit.EllipticalOrbit)
-        self.assertTrue(type(self._ellipticalOrbit) is orbit.EllipticalOrbit)
-        self.assertTrue(type(self._hyperbolicOrbit) is orbit.HyperbolicOrbit)
+        """Tests to see if the correct subclass is instantiated by the Orbit factory."""
+
+        slowShip = orbit.DynamicBody(numpy.array([-10.5, 0.0], dtype=float) ,numpy.array([0.0, 1.10], dtype=float))
+        standardShip = orbit.DynamicBody(numpy.array([-16.64, 2.2219], dtype=float) ,numpy.array([0.4240792, 2.147133], dtype=float))
+        fastShip = orbit.DynamicBody(numpy.array([-16.64, 2.2219], dtype=float) ,numpy.array([0.0, 15], dtype=float))
+        planet = orbit.StaticBody(numpy.array([0, 0], dtype=float), 80.0)
+
+        shallowOrbit = orbit.Orbit(slowShip, planet)
+        ellipticalOrbit = orbit.Orbit(standardShip, planet)
+        hyperbolicOrbit = orbit.Orbit(fastShip, planet)
+
+        self.assertTrue(type(shallowOrbit) is orbit.EllipticalOrbit)
+        self.assertTrue(type(ellipticalOrbit) is orbit.EllipticalOrbit)
+        self.assertTrue(type(hyperbolicOrbit) is orbit.HyperbolicOrbit)
 
 
 if __name__ == '__main__':
