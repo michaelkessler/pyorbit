@@ -21,20 +21,48 @@
 import numpy
 import math
 
-# Support functions
+# Note to Programmer:
+# Many of the properties on the orbit classes are single-letter properties and
+# in a few cases are uppercased.  These parameters most closely represent the
+# orbital mechanics common names and should generally match text books and
+# other reference.  Below are a few good online references for orbital mechanics.
+#
+# http://www.braeunig.us/space/
+# http://en.wikipedia.org/wiki/Orbital_mechanics
+
 def normalize(vector):
-    # Returns a normalized copy of the input vector.
+    """Returns a normalized copy of the input vector."""
     return vector / numpy.linalg.norm(vector)
 
 def angleBetween(vec1, vec2):
-    # Returns the angle between two vectors.
+    """Returns the angle between two vectors.
+
+    Args:
+        vec1 (numpy.array): First input vector
+        vec2 (numpy.array): Second input vector
+
+    Returns:
+        float
+
+    """
     nvec1 = normalize(vec1)
     nvec2 = normalize(vec2)
     return numpy.arccos(numpy.dot(nvec1, nvec2))
 
-def rotate(vec, angle):
-    x = vec[0] * math.cos(angle) - vec[1] * math.sin(angle)
-    y = vec[0] * math.sin(angle) + vec[1] * math.cos(angle)
+def rotate(vector, angle):
+    """Rotates a vector by a given angle.
+
+    Args:
+        vector (numpy.array): The input 2d vector as a numpy.array.
+        angle (float): The angle to rotate the given vector in radians.
+
+    Returns:
+        numpy.array: A 2d array representing the rotated input.
+
+    """
+    
+    x = vector[0] * math.cos(angle) - vector[1] * math.sin(angle)
+    y = vector[0] * math.sin(angle) + vector[1] * math.cos(angle)
     return numpy.array([x, y], dtype=float)
 
 
@@ -52,13 +80,17 @@ class StaticBody(object):
         self._position = position
         self._mass = mass
 
+    def __repr__(self):
+        return 'StaticBody([{p[0]},{p[1]}], {m})'.format(p=self.position, m=self.mass)
 
     @property
     def mass(self):
+        """The mass of the gravitational source."""
         return self._mass
 
     @property
     def position(self):
+        """The fixed position of the gravitational source."""
         return self._position
 
 
@@ -66,46 +98,44 @@ class DynamicBody(object):
     """Represents an object in freeflight around a gravitational source."""
 
     def __init__(self, position, velocity):
-        """
-        (numpy.array) Initial position of the orbiting body.
+        """A moving body in orbit.
 
-        (numpy.array) Initial velicty of the orbiting body.
+        Args:
+            position (numpy.array): Initial position of the orbiting body.
+            velocity (numpy.array): Initial velicty of the orbiting body.
 
         """
 
         self._position = position
         self._velocity = velocity
 
+    def __repr__(self):
+        return 'StaticBody([{p[0]},{p[1]}], [{v[0]},{v[1]}])'.format(p=self.position, m=self.velocity)
+
     @property
     def position(self):
+        """The initial position of the moving body."""
         return self._position
 
     @property
     def velocity(self):
+        """The initial velocity of the moving body."""
         return self._velocity
 
 
 class Orbit(object):
-    """Represents the path of an orbiting object in a 2-body system.
+    """Represents the path of an orbiting object in a 2-body system."""
 
-    """
-
-    # Standard gravitational constant.  For real scaling, see the
-    # following wikipedia article:
+    # Standard gravitational constant.
     # http://en.wikipedia.org/wiki/Standard_gravitational_parameter
     g = 1.0;
+    # For real scaling set g to 6.67*10^-11, but for the purposes
+    # of floating point accuracy and game scales, we use 1.0
 
     clockwise = 1
     counterclockwise = -1
 
     def __new__(cls, orbiter, target):
-        """
-        (DynamicBody) The object to be considered as the orbiting body.
-
-        (StaticBody) The gravity source for the orbiting body to orbit.
-
-        """
-
         # This is both the base class and factory for generating orbits.
         # Having this the factory makes the interface easy to use while
         # still keeping the code maintainable.  To determine what kind
@@ -113,7 +143,7 @@ class Orbit(object):
         # Once we have the burnout angle, we have everything we need to
         # compute the eccentricity, which is what determines what kind
         # of orbit we have.  To do this, we will create the most common
-        # orbit type first (elliptical), compute the two terms, and if
+        # orbit type first (elliptical), compute the eccentricity, and if
         # the eccentricity is greater than 1.0 we will instead construct
         # a hyperbolic orbit.
 
@@ -128,6 +158,14 @@ class Orbit(object):
 
 
     def __init__(self, orbiter, target):
+        """Representation of an orbital path.
+
+        Args:
+            orbiter (DynamicBody): The object to be considered as the orbiting body.
+            target (StaticBody): The gravity source for the orbiting body to orbit.
+
+        """
+
 
         # Direct assignments
         self._orbiter = orbiter
@@ -147,6 +185,7 @@ class Orbit(object):
         self._direction = None # Direction of orbit
 
     def _computeApsi(self):
+        """Compute the periapsis and apoapsis and store the results."""
         r = self.r
         v = numpy.linalg.norm(self.orbiter.velocity)
         M = self.target.mass
@@ -154,6 +193,7 @@ class Orbit(object):
 
         angle = self.burnoutAngle
 
+        # A few simplifications to reduce complexity in the full equation.
         C = 2.0 * self.gm / (r*(v**2))
         negC = C*-1.0
         omC = 1.0-C
@@ -166,6 +206,7 @@ class Orbit(object):
 
         quadDivisor = 2.0 * omC
 
+        # The quadratic equation creates two solutions
         Rp1 = (negC + quadSecond) / quadDivisor
         Rp2 = (negC - quadSecond) / quadDivisor
 
@@ -177,21 +218,23 @@ class Orbit(object):
             self._apoapsis = Rp2*r
             self._periapsis = Rp1*r
 
+        # In the hyperbolic case, make sure we choose the proper periapsis,
+        # one solution will be negative.
         if (Rp1 < 0.0):
             self._periapsis = Rp2*r
         elif (Rp2 < 0.0):
             self._periapsis = Rp1*r
 
-
     @property
     def a(self):
-        """Semi-major axis"""
+        """Semi-major axis."""
         if self._a is None:
             self._a = 1.0 / (2.0 / self.r - (numpy.linalg.norm(self.orbiter.velocity)**2) / self.gm)
         return self._a
 
     @property
     def apoapsis(self):
+        """Furthest distance in orbit."""
         if self._apoapsis is None:
             # Apoapsis and Periapsis are computed together,
             # the first one called will cache both.
@@ -200,7 +243,7 @@ class Orbit(object):
 
     @property
     def b(self):
-        """Semi-minor axis"""
+        """Semi-minor axis."""
         if self._b is None:
             self._b = self._a * math.sqrt(1.0-self.e)
         return self._b
@@ -220,6 +263,7 @@ class Orbit(object):
 
     @property
     def direction(self):
+        """The direction of orbit from the 'top' vantage point."""
         if self._direction is None:
             rightanglevec = rotate(self.ngtoorb, math.pi/2.0)
             if (numpy.dot(rightanglevec, normalize(self.orbiter.velocity))>0.0):
@@ -253,6 +297,7 @@ class Orbit(object):
 
     @property
     def gm(self):
+        """The standard orbital parameter multiplied by mass of the target."""
         if self._gm is None:
             self._gm = self.g*self.target.mass
 
@@ -260,6 +305,7 @@ class Orbit(object):
 
     @property
     def launchAngle(self):
+        """The angle between the orbiting object's velocity and the orbital path."""
         if self._launchAngle is None:
             rvmagsqr = (self.r * (numpy.linalg.norm(self.orbiter.velocity)**2) / self.gm)
             sincos = math.sin(self.burnoutAngle) * math.cos(self.burnoutAngle)
@@ -269,8 +315,6 @@ class Orbit(object):
 
             if ( denom < 0.0 ):
                 launchToPeri += math.pi
-
-
 
             self._launchAngle = launchToPeri
 
@@ -291,12 +335,14 @@ class Orbit(object):
 
     @property
     def periapsis(self):
+        """Closest distance of the entire orbital period."""
         if self._periapsis is None:
             self._computeApsi()
         return self._periapsis
 
     @property
     def r(self):
+        """Radius of orbit at the initial position angle."""
         return numpy.linalg.norm(self.orbiter.position - self.target.position)
 
     @property
@@ -305,10 +351,23 @@ class Orbit(object):
         return self._target
 
     def displayPoints(points=0):
+        """Unimplemented method to be implemented by subclasses.
+
+        Raises:
+            NotImplementedError
+
+        """
+
         raise NotImplementedError("displayPoints() must not be run from a generic orbit.")
 
 
 class EllipticalOrbit(Orbit):
+    """An EllipticalOrbit is the representation of an orbital path of an orbit which
+    is captured by the gravity source an will never exit.  The resulting path will
+    form the shape of an ellipse.
+
+    """
+
     def __new__(cls, orbiter, target):
         instance = object.__new__(cls, orbiter, target)
         return instance
@@ -329,7 +388,6 @@ class EllipticalOrbit(Orbit):
             r = self.a*((1 - (self.e**2)) / (1+self.e*math.cos(theta)))
             point = rotate(self.ngtoorb, self.direction*(theta+self.launchAngle+math.pi))*r
 
-
             if firstPoint is None:
                 firstPoint = point
 
@@ -340,19 +398,39 @@ class EllipticalOrbit(Orbit):
         
 
 class HyperbolicOrbit(Orbit):
+    """A HyperbolicOrbit is the representation of the orbital path of an orbit which
+    is not fully captured by the gravitational source.  They have the shape of a
+    hyperbola and in a simplified n-body system is considered to acheive an escape
+    orbit.
+
+    """
+
     def __new__(cls, orbiter, target):
         instance = object.__new__(cls, orbiter, target)
         return instance
 
     def __init__(self, orbiter, target):
+        """A hyperbolic/escape tragectory orbit."""
         super(HyperbolicOrbit, self).__init__(orbiter, target)
-        self._asymptote = None
-        self._semilatusRectum = None
+        self._asymptote = None # The angle from periapsis of which the orbit approaches.
+        self._semilatusRectum = None # Hyperbolic term relating to asymptote angles.
+
+    @property
+    def asymptote(self):
+        """The angle at which the hyperbolic asymptote relative to the semi-latus rectum."""
+
+        if self._asymptote is None:
+            self._asymptote = math.acos(-(1.0/self.e))
+        return self._asymptote
 
     def displayPoints(self, points=30):
         """Generator to create points to display the orbit.
 
-        points (int) Number of points to be used to represent the orbit.
+        Args:
+            points (int): Number of points to be used to represent the orbit.
+
+        Returns:
+            generator: Returns a generator returning elements as [x,y] in a numpy.array 
 
         """
 
@@ -365,19 +443,14 @@ class HyperbolicOrbit(Orbit):
             r = self.a*((1 - (self.e**2)) / (1+self.e*math.cos(theta)))
             point = rotate(self.ngtoorb, self.direction*(theta+self.launchAngle+math.pi))*r
 
+            # Generate one point so that drawing routines can iterate through this generator.
             yield point
-
-    @property
-    def asymptote(self):
-        """The angle at which the hyperbolic asymptote relative to the semi-latus rectum."""
-        if self._asymptote is None:
-            self._asymptote = math.acos(-(1.0/self.e))
-        return self._asymptote
 
     @property
     def semilatusRectum(self):
         """The hyperbolic term from which the asymptotes cross.
         Described as a distance from the focus source through the periapsis.
+        See: http://mathworld.wolfram.com/SemilatusRectum.html
 
         """
 
