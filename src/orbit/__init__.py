@@ -356,7 +356,7 @@ class Orbit(object):
         """The object considered to be the gravity source."""
         return self._target
 
-    def displayPoints(self, points=0):
+    def displayPoints(self, points=0, close=True):
         """Unimplemented method to be implemented by subclasses.
 
         Raises:
@@ -378,7 +378,7 @@ class EllipticalOrbit(Orbit):
         instance = object.__new__(cls, orbiter, target)
         return instance
 
-    def displayPoints(self, points=30):
+    def displayPoints(self, points=30, close=True):
         """Generator to create points to display the orbit.
 
         points (int) Number of points to be used to represent the orbit.
@@ -402,7 +402,8 @@ class EllipticalOrbit(Orbit):
             yield point
 
         # Finally end with the starting point to close the loop.
-        yield firstPoint
+        if close:
+            yield firstPoint
 
 class HyperbolicOrbit(Orbit):
     """A HyperbolicOrbit is the representation of the orbital path of an orbit which
@@ -430,7 +431,7 @@ class HyperbolicOrbit(Orbit):
             self._asymptote = math.acos(-(1.0/self.e))
         return self._asymptote
 
-    def displayPoints(self, points=30):
+    def displayPoints(self, points=30, close=False):
         """Generator to create points to display the orbit.
 
         Args:
