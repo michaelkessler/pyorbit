@@ -366,6 +366,12 @@ class Orbit(object):
 
         raise NotImplementedError("displayPoints() must not be run from a generic orbit.")
 
+    def positionAtTime(self, time):
+        """Given a time, geenrate a position where the ship will/has been."""
+
+        ta = self.trueAnomaly(time)
+        r = self.a*(1-(self.e**2))/(1+self.e*math.cos(ta))
+        return rotate(self.ngtoorb, self.launchAngle+ta+math.pi)*r
 
 class EllipticalOrbit(Orbit):
     """An EllipticalOrbit is the representation of an orbital path of an orbit which
@@ -545,5 +551,5 @@ class HyperbolicOrbit(Orbit):
 
     def trueAnomaly(self, time):
         """The angular parameter given a time from initial position."""
-        pass
+        raise NotImplementedError("Not yet ported from Unity library.")
 
