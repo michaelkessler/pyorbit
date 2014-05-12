@@ -27,7 +27,7 @@ import math
 # Many of the properties on the orbit classes are single-letter properties and
 # in a few cases are uppercased.  These parameters most closely represent the
 # orbital mechanics common names and should generally match text books and
-# other reference.  Below are a few good online references for orbital mechanics.
+# other reference.  Below are a few good online references.
 #
 # http://www.braeunig.us/space/
 # http://en.wikipedia.org/wiki/Orbital_mechanics
@@ -83,7 +83,10 @@ class StaticBody(object):
         self._mass = mass
 
     def __repr__(self):
-        return 'StaticBody([{p[0]},{p[1]}], {m})'.format(p=self.position, m=self.mass)
+        return 'StaticBody([{p[0]},{p[1]}], {m})'.format(
+            p=self.position,
+            m=self.mass
+        )
 
     @property
     def mass(self):
@@ -166,8 +169,8 @@ class Orbit(object):
         """Representation of an orbital path.
 
         Args:
-            orbiter (DynamicBody): The object to be considered as the orbiting body.
-            target (StaticBody): The gravity source for the orbiting body to orbit.
+            orbiter (DynamicBody): The orbiting body.
+            target (StaticBody): The gravity source.
 
         """
 
@@ -181,11 +184,11 @@ class Orbit(object):
         self._b = None # Semi-minor axis
         self._e = None # Eccentricity
         self._f = None # Distance from center to focci.
-        self._ngtoorb = None # Normalized gravitiational source to orbitiing start position
+        self._ngtoorb = None # Normalized gravity source to orbiting start
         self._gm = None # Standard gravatational parameter (constant times mass)
         self._periapsis = None # Closest distance in orbit
         self._apoapsis = None # Furthest distance in orbit
-        self._launchAngle = None # Angle between initial point and periapsis around orbit
+        self._launchAngle = None # Angle between initial point and periapsis
         self._direction = None # Direction of orbit
 
     def _computeApsi(self):
@@ -213,7 +216,7 @@ class Orbit(object):
         Rp2 = (negC - quadSecond) / quadDivisor
 
         # This happens when we have an eccentricity > 1.0
-        if (Rp1 > Rp2):
+        if Rp1 > Rp2:
             self._apoapsis = Rp1*r
             self._periapsis = Rp2*r
         else:
@@ -222,16 +225,17 @@ class Orbit(object):
 
         # In the hyperbolic case, make sure we choose the proper periapsis,
         # one solution will be negative.
-        if (Rp1 < 0.0):
+        if Rp1 < 0.0:
             self._periapsis = Rp2*r
-        elif (Rp2 < 0.0):
+        elif Rp2 < 0.0:
             self._periapsis = Rp1*r
 
     @property
     def a(self):
         """Semi-major axis."""
         if self._a is None:
-            self._a = 1.0 / (2.0 / self.r - (numpy.linalg.norm(self.orbiter.velocity)**2) / self.gm)
+            vmag = numpy.linalg.norm(self.orbiter.velocity)
+            self._a = 1.0 / (2.0 / self.r - (vmag**2) / self.gm)
         return self._a
 
     @property
@@ -252,13 +256,13 @@ class Orbit(object):
 
     @property
     def burnoutAngle(self):
-        """The angle between the gravitational source and where the orbit began."""
+        """The angle between the gravity source and where the orbit began."""
         if self._burnoutAngle is None:
             nvel = normalize(self.orbiter.velocity)
             angle = angleBetween(self.ngtoorb, nvel)
             cross = numpy.cross(self.ngtoorb, nvel)
 
-            if (numpy.dot(numpy.array([0.0, -1.0], dtype=float), cross)[0] < 0.0):
+            if numpy.dot(numpy.array([0.0, -1.0], dtype=float), cross)[0] < 0.0:
                 angle *= -1.0
 
         return angle
@@ -268,7 +272,7 @@ class Orbit(object):
         """The direction of orbit from the 'top' vantage point."""
         if self._direction is None:
             rightanglevec = rotate(self.ngtoorb, math.pi/2.0)
-            if (numpy.dot(rightanglevec, normalize(self.orbiter.velocity)) > 0.0):
+            if numpy.dot(rightanglevec, normalize(self.orbiter.velocity)) > 0.0:
                 self._direction = self.counterclockwise
             else:
                 self._direction = self.clockwise
@@ -308,13 +312,14 @@ class Orbit(object):
     def launchAngle(self):
         """The angle between the orbiting object's velocity and the orbital path."""
         if self._launchAngle is None:
-            rvmagsqr = (self.r * (numpy.linalg.norm(self.orbiter.velocity)**2) / self.gm)
+            vmag = numpy.linalg.norm(self.orbiter.velocity)
+            rvmagsqr = (self.r * (vmag**2) / self.gm)
             sincos = math.sin(self.burnoutAngle) * math.cos(self.burnoutAngle)
             denom = (rvmagsqr * (math.sin(self.burnoutAngle)**2)-1)
             ltp = (rvmagsqr * sincos) / denom
             launchToPeri = math.atan(ltp)
 
-            if ( denom < 0.0 ):
+            if denom < 0.0:
                 launchToPeri += math.pi
 
             self._launchAngle = launchToPeri
@@ -387,13 +392,16 @@ class EllipticalOrbit(Orbit):
         for i in xrange(0, points):
             theta = i*radPerPoint
             r = self.a*((1 - (self.e**2)) / (1+self.e*math.cos(theta)))
-            point = rotate(self.ngtoorb, self.direction*(theta+self.launchAngle+math.pi))*r
+            angle = self.direction*(theta+self.launchAngle+math.pi)
+            point = rotate(self.ngtoorb, angle)*r
 
             if firstPoint is None:
                 firstPoint = point
 
+            # Generate one point at at time so drawing routines can iterate.
             yield point
 
+        # Finally end with the starting point to close the loop.
         yield firstPoint
 
 class HyperbolicOrbit(Orbit):
@@ -440,9 +448,10 @@ class HyperbolicOrbit(Orbit):
         for i in xrange(0, points):
             theta = (i*radPerPoint)+start
             r = self.a*((1 - (self.e**2)) / (1+self.e*math.cos(theta)))
-            point = rotate(self.ngtoorb, self.direction*(theta+self.launchAngle+math.pi))*r
+            angle = self.direction*(theta+self.launchAngle+math.pi)
+            point = rotate(self.ngtoorb, angle)*r
 
-            # Generate one point so that drawing routines can iterate through this generator.
+            # Generate one point at at time so drawing routines can iterate.
             yield point
 
     @property
