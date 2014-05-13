@@ -95,20 +95,6 @@ class OrbitWidget(QtGui.QWidget):
 
         painter.drawPath(path)
 
-        # Draw the moved ship
-        shipSize = 10
-        #angle = self._orbit.trueAnomaly(self._time)
-        #movedPosition = orbit.rotate(self._orbit.ngtoorb, angle+math.pi)*self._orbit.r
-        try:
-            fspx = xzero+(self._orbit.positionAtTime(self._time)[0]*scale)
-            fspy = yzero+(self._orbit.positionAtTime(self._time)[1]*scale)
-        except NotImplementedError:
-            # Currently hyperbolic orbits are not ported over, fail gracefully.
-            pass
-        else:
-            painter.setPen(QtCore.Qt.gray)
-            painter.drawEllipse(fspx-(shipSize/2), fspy-(shipSize/2), shipSize, shipSize)
-
         # Draw the starting ship
         shipSize = 10
         spx = xzero+(self._ship.position[0]*scale)
@@ -178,7 +164,6 @@ class ControlWidget(QtGui.QWidget):
         self._time.setRange(-50,50)
         self._time.setSingleStep(.05)
         self._time.valueChanged.connect(self.forwardTime)
-        layout.addWidget(self._time)
 
         self.setLayout(layout)
 

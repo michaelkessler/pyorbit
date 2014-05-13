@@ -292,6 +292,14 @@ class Orbit(object):
 
         return self._e
 
+    def eccentricAnomaly(self, trueAnomaly):
+        """The angular parameter from focus given an angle from initial position."""
+        E = math.acos((self.e+math.cos(trueAnomaly))/(1+self.e*math.cos(trueAnomaly)))
+        if trueAnomaly<0:
+            E*=-1
+
+        return E
+
     @property
     def f(self):
         """The distance from the center to either focci."""
@@ -313,7 +321,7 @@ class Orbit(object):
         """The angle between the orbiting object's velocity and the orbital path."""
         if self._launchAngle is None:
             vmag = numpy.linalg.norm(self.orbiter.velocity)
-            rvmagsqr = (self.r * (vmag**2) / self.gm)
+            rvmagsqr = self.r * (vmag**2) / self.gm
             sincos = math.sin(self.burnoutAngle) * math.cos(self.burnoutAngle)
             denom = (rvmagsqr * (math.sin(self.burnoutAngle)**2)-1)
             ltp = (rvmagsqr * sincos) / denom
@@ -321,6 +329,9 @@ class Orbit(object):
 
             if denom < 0.0:
                 launchToPeri += math.pi
+
+            if rvmagsqr*sincos>math.pi:
+                launchToPeri-(2*math.pi)
 
             self._launchAngle = launchToPeri
 
@@ -366,13 +377,6 @@ class Orbit(object):
 
         raise NotImplementedError("displayPoints() must not be run from a generic orbit.")
 
-    def positionAtTime(self, time):
-        """Given a time, generate a position where the ship will/has been."""
-
-        ta = self.trueAnomaly(time)
-        r = self.a*(1-(self.e**2))/(1+self.e*math.cos(ta))
-        return rotate(self.ngtoorb, self.launchAngle+ta+math.pi)*r
-
 class EllipticalOrbit(Orbit):
     """An EllipticalOrbit is the representation of an orbital path of an orbit which
     is captured by the gravity source an will never exit.  The resulting path will
@@ -395,6 +399,7 @@ class EllipticalOrbit(Orbit):
         points (int) Number of points to be used to represent the orbit.
 
         """
+
 
         # The angle per point to sweep based on points
         radPerPoint = (math.pi*2.0) / float(points)
@@ -422,11 +427,25 @@ class EllipticalOrbit(Orbit):
         return ((time%p)/p)*2*math.pi
 
     @property
+    def meanMotion(self):
+        return math.sqrt(self.gm/abs(self.a**3))
+
+    @property
     def period(self):
         """The orbital period, or length of time for complete orbit."""
         if self._period is None:
             self._period = math.sqrt((4*(math.pi**2)*(self.a**3))/self.gm)
         return self._period
+
+    def positionAtTime(self, time):
+        """Given a time, generate a position where the ship will/has been."""
+
+        ta = self.trueAnomaly(time+self.startingTime)
+        ad = rotate(self.ngtoorb, self.launchAngle)
+        ad = rotate(ad, -ta+math.pi)
+        r = self.a*((1-(self.e**2))/(1+self.e*math.cos(ta)))
+        return ad*r
+        return rotate(ad, ta)*r
         
     @property
     def semilatusRectum(self):
@@ -440,6 +459,16 @@ class EllipticalOrbit(Orbit):
             self._semilatusRectum = self.a*(1.0-(self.e**2))
 
         return self._semilatusRectum
+
+    @property
+    def startingTime(self):
+        E = self.eccentricAnomaly(self.launchAngle)
+        M = self.meanAnomaly(E)
+        n = self.meanMotion
+        t = M/n
+        if self.direction==self.counterclockwise:
+            t*=-1
+        return t
 
     def trueAnomaly(self, time, maxIterations=20):
         """The angular parameter given a time from initial position."""
@@ -518,6 +547,7 @@ class HyperbolicOrbit(Orbit):
 
         """
 
+
         start = -(self.asymptote-.1)
         end = self.asymptote-.1
         radPerPoint = (end-start)/points
@@ -532,9 +562,37 @@ class HyperbolicOrbit(Orbit):
             yield point
 
 
-    def eccentricAnomaly(self, time):
+
+
+    def eccentricAnomaly(self, trueAnomaly):
         """The angular parameter from focus given a time from initial position."""
         pass
+
+    def eccentricAnomalyAtTime(self, time):
+        """The angular parameter from focus given a time from initial position."""
+
+        uu = math.sqrt(self.gm/pow(self.apoapsis, 3))
+        m = uu*time
+
+        u = [0.0]
+        j = 0
+
+        while True:
+            f0 = self.e*math.sinh(u[j]) - u[j] - m
+            f1 = self.e*math.cosh(u[j]) - 1.0
+            f2 = self.e*math.sinh(u[j])
+            f3 = self.e*math.cosh(u[j])
+            d1 = -f0 / f1
+            d2 = -f0 / (f1 + .5*d1*f2)
+            d3 = -f0 / (f1 + .5*d1*f2 + (1/6)*pow(d2,2)*f3)
+            n = u[j]+d3
+            u.append(n)
+            j+=1
+            if (abs(u[j]-u[j-1]) < .001) or j>20:
+                break
+
+        return u[j]
+        
 
     @property
     def semilatusRectum(self):
@@ -549,7 +607,44 @@ class HyperbolicOrbit(Orbit):
 
         return self._semilatusRectum
 
+    @property
+    def startingTime(self):
+        angle = self.launchAngle
+        F = math.acosh((self.e+math.cos(angle))/(1.0+self.e*math.cos(angle)))
+        M = self.e*math.sinh(F)-F
+        ht = pow(pow(self.apoapsis,3.0)/self.gm, .5) * M
+        if angle>0:
+            return -ht
+        else:
+            return ht
+
+    def positionAtTime(self, time):
+        """Given a time, generate a position where the ship will/has been."""
+
+        ta = self.trueAnomaly(time+self.startingTime)
+        ad = rotate(self.ngtoorb, self.launchAngle)
+        ad = rotate(ad, -ta+math.pi)
+        r = self.a*((1-(self.e**2))/(1+self.e*math.cos(ta)))
+        return ad*r
+        return rotate(ad, ta)*r
+
     def trueAnomaly(self, time):
         """The angular parameter given a time from initial position."""
-        raise NotImplementedError("Not yet ported from Unity library.")
+        u = self.eccentricAnomalyAtTime(time)
+
+        try:
+
+            curr = math.acos((self.e-math.cosh(u))/self.e*math.cosh(u)-1.0)
+        except ValueError:
+            curr = 0.0
+
+        if u==0.0:
+            curr = 0.0
+        elif u<0.0:
+            curr = 2.0*math.pi-curr
+        
+        if self.direction == self.clockwise:
+            curr *= -1.0
+
+        return curr
 
